@@ -1,0 +1,164 @@
+from nltk.corpus import words # type: ignore
+
+### --- Setup and Introduction --- ###
+# Pull word list
+word_list = words.words()
+
+# Filter out proper nouns from word list
+word_list = [word for word in word_list if word.islower()]
+
+# Create dictionary of all 5 letter words
+len_five_words = [word for word in word_list if len(word) == 5]
+word_dict = {word:0 for word in len_five_words}
+
+# Create dictionary of ranked lowercase letters 
+letters = [chr(i) for i in range(ord('a'), ord('z') + 1)]
+letter_dict = {letter:0 for letter in letters}
+
+for letter, value in letter_dict.items():
+    for word in word_list:
+        if letter in word:
+            letter_dict[letter] += 1
+
+# Rank all the words in dictionary
+for word in word_dict:
+    for letter in letter_dict:
+        if letter in word:
+            word_dict[word] += letter_dict[letter]
+
+# Empty lists and dictionaries
+grey_letters = []
+yellow_dict = {}
+green_dict = {}
+words_to_remove = []
+guesses = []
+guess_count = 1
+
+print("BEEP BOOP Welcome to Wordle Solver! \n Here are some of the best starter guesses if you're interested: \n adieu, irate, crane, trace, slate")
+
+### --- Functions --- ###
+def get_guess():
+    guess = input(f"Please enter guess number {guess_count}: ")
+    return guess
+
+def get_guess_results(guess):
+    options = ["grey", "yellow", "green"]
+    
+    while True:
+        results = []
+        for i in range(1, 6):
+            while True:
+                result = input(f"Letter {i} result (grey, yellow, green): ").strip().lower()
+                if result in options:
+                    results.append(result)
+                    break
+                else:
+                    print("Invalid choice. Please select one of the following options: grey, yellow, green.")
+        
+        # Repeat the guess and results back to the user for confirmation
+        print(f"Your results for {guess}: {results}")
+        while True:
+            confirmation = input("Are these results correct? (Y/N): ").strip().upper()
+            if confirmation == 'Y':
+                return results
+            elif confirmation == 'N':
+                print("Let's try entering the results again.")
+                break
+            else:
+                print("Invalid choice. Please enter 'Y' or 'N'.")
+
+def check_for_victory(results):
+    return 'Yes' if results.count('green') == 5 else 'No'
+
+###### ----- Inputting and Processing Guesses ----- ######
+while guess_count < 7 and len(word_dict) > 0:
+    starting_words_removed = len(words_to_remove)
+
+    ### --- Guess Input --- ###
+    guess = get_guess()
+    guesses.append(guess)
+    print(f"Your guesses so far: {guesses}")
+
+    guess_results = get_guess_results(guess)
+    print(f"Guess {guess_count} results: {guess_results}")
+
+    # Check for completion
+    status = check_for_victory(guess_results)
+    if status == 'Yes':
+        print(f"Congratulations! You completed today's Wordle in {guess_count} guesses!")
+        break
+    if guess_count == 6:
+        print("I'm sorry but you did not complete the Wordle in enough guesses today. Better luck tomorrow!")
+
+    ### --- Process Guess --- ###
+    # 1. Eliminate all words from word dictionary that contain greyed out letters
+    # 2. Eliminate all words from word dictionary that A. Do not contain a yellow letter and B. Contain yellow letters in the "incorrect" spot
+    # 3. Eliminate all words from word dictionary that do not contain green letters in the correct spot
+    # 4. Check for Wordle completion
+    # 5. Produce top options for next guess
+
+    guess_letters = list(guess)
+
+    # Add disqualified words to words_to_remove based on grey letters
+    for i in range(5):
+        if guess_results[i] == 'grey':
+            grey_letters.append(guess_letters[i])
+
+    for word in word_dict:
+        for letter in grey_letters:
+            if letter in word and word not in words_to_remove:
+                words_to_remove.append(word)
+
+    # Create dictionary of yellow letters with positions as their values
+    for i in range(len(guess_results)):
+        if guess_results[i] == 'yellow':
+            if guess_letters[i] in yellow_dict:
+                yellow_dict[guess_letters[i]].append(i)
+            else:
+                yellow_dict[guess_letters[i]] = [i]
+
+    # Add disqualified words to words_to_remove based on yellow letters
+    for word in word_dict:
+        for letter, positions in yellow_dict.items():
+            # A. Do not contain a yellow letter
+            if letter not in word and word not in words_to_remove:
+                words_to_remove.append(word)
+            # B. Contain yellow letters in the "incorrect" spot
+            for i in positions:
+                if word[i] == letter and word not in words_to_remove:
+                    words_to_remove.append(word)
+
+    # Create dictionary of green letters with positions as their values
+    for i in range(len(guess_results)):
+        if guess_results[i] == 'green':
+            if guess_letters[i] in green_dict:
+                green_dict[guess_letters[i]].append(i)
+            else:
+                green_dict[guess_letters[i]] = [i]
+
+    # Add disqualified words to words_to_remove based on green letters
+    for word in word_dict:
+        for letter, positions in green_dict.items():
+            for i in positions:
+                if word[i] != letter and word not in words_to_remove:
+                    words_to_remove.append(word)
+
+    # Eliminate words from the word dictionary
+    for word in words_to_remove:
+        if word in word_dict:
+            word_dict.pop(word)
+
+    # Feedback
+    print("---------------------------------------------------------------------------")
+    print(f"Guess {guess_count} has been processed! \nNumber of Words Removed By This Guess: {len(words_to_remove) - starting_words_removed} \nTotal Number of Words Removed: {len(words_to_remove)} \nNumber of Words Remaining: {len(word_dict)} ")
+    print("Grey Letters: ", grey_letters)
+    print("Yellow Dictionary: ", yellow_dict)
+    print("Green Dictionary: ", green_dict)
+
+    # Produce options for next guess
+    sorted_word_dict = sorted(word_dict, key = lambda x:word_dict[x], reverse=True)
+    print("Here are some of the top remaining words for your next guess: ", sorted_word_dict[:20])
+
+    # Continue to next guess
+    guess_count +=1
+    
